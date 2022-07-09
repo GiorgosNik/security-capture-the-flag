@@ -61,5 +61,16 @@ We tried to make use of the leads we had collected during the previous steps. Sp
 
 -FLAG={Stop! Hammer Time}
 
+### Part 4
+The clue came in the form of an encrypted message, which when decrypted would reveal the location the files had been moved to. In the same page, we had access to a form that could be used to verify the encrypted message was in fact correct. After experimenting with filing out the form we found we got the following messages:
+
+- "secret ok": when filing the form with the provided ciphertext
+- "invalid size": when filing the form with a message of a size not divisible by 16
+- "invalid padding" or "wrong secret": seemingly at random in any other case
+
+We noticed that similarly to a previous problem, the webpage was based on a pico server, so we examined the pico repository again. We deduced that the data submited by the form were provided as input to the program "check-secret", which is part of the pico repository. The program received an encrypted text, decrypts it using the key it reads from a file, checks and then removes the padding, and finaly compares the resulting text with a text stored on a different local file. We thought of ways to use to use this system to our advantage, and came across an algorith called "The Padding Oracle Attack". This attack is based on te information returned from the target regarding the correctness of the padding, and allows us to decrypt the message without having any knowledge of the key. In order to do this, we have to create a "zeroing initialization vector", a structure that holds the values of the intermidieta representation of the cipher text, after the ciphertext has been decoded but before it has been XORed with the initialization vecoctor. This is done by trying random values in the range of [0-255], until we get a message other than "invalid padding", meaning the padding is interpreted as correct. For the last value of the Zeroing IV, this correct padding value is 0x01, for the second value is has to be 0x02 0x02 (all padding bytes share the same value, thah beeing the size of the padding). After calculationg the zeroing IV, we can compute the XOR of each one of its elements with the actual IV, retreiving the cleartext as a result. We created a script titled "aesOracle.sh" to perform this calculation. This way, we found out the Project X files have been mobed to "/secet/x".
+
+-FLAG={/secet/x}
+
 -socat
 /kilimanjarotimes4818.jpg
