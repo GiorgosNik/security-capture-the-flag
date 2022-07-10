@@ -94,7 +94,7 @@ done
 echo $zeroIV
 
 clearText=""
-for byte in {1..15}
+for byte in {0..15}
 do
   start=$((byte*2))
   ivVal=${cipher:$start:2}
