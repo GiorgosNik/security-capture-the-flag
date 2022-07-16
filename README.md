@@ -72,5 +72,58 @@ We noticed that similarly to a previous problem, the webpage was based on a pico
 
 -FLAG={/secet/x}
 
--socat
-/kilimanjarotimes4818.jpg
+### Part 5
+We revealed the new location of the files, we now had to retrieve them. After further examining the code, we decided this would be done using the `send_file()` function. This function takes a filename as input, and transmits the file to the client. In order to call the function using `\secet\x` as the argument, we needed to perform a buffer overflow attack, by abusing the use of `strcpy()` under the function `post_param`, a vulnerability we had taken note of earlier. The server uses `strcpy()` to copy the contents of the user-made POST request to a buffer for further processing. The buffer is created dynamically based on the size of the data of the request. This data is normally calculated on the client side based on the input (by the browser, the `curl` command etc.), it is however possible to provide it manually, thus forcing the buffer to have a certain size. By adding `-H 'Content-Length: 0'` as an argument to our curl command, we can force the buffer to take a size of 0.
+
+We now have to figure out what to overflow the buffer with. To gather information on the internal workings of the program, and specifically the contents of the stack, we used the vulnerable `printf()` function from an earlier problem. By providing a number of `08x` as arguments, we could leak the contents of the stack. After examining our local version of the server under `gdb`, we determined that we needed to leak at least 31 words of the memory, to gather all the information we need. This task is performed by `leakAddr.sh`, which prints a string that contains 31 words of the server's memory under the `check_auth()` function. Among these are
+- The stack canary: We need to include it in our payload, to avoid stack smashing errors
+- The saved ebp register: We need to include it in our payload before the return address, and also to calculate some offsets
+- The return address of `check_auth`: We can use it to calculate offsets.
+
+After gathering this information, we had to craft our payload by testing our local server with `gdb`: We found that the payload must have the following format:
+ - 40 random bytes
+ - The address of the given argument of `post_param()`. We determined that address of this argument was calculated as the return address of `check_auth` plus 4885. 
+ - 56 more random bytes
+ - The address to the start of the buffer (calculated as the leaked ebp from earlier -136), followed by 8 random bytes
+ - The 16 bytes of the canary, followed by 8 random bytes
+ - The ebp register we leaked earlier
+ - The return address. To calculate the return address, we used `info address send_file` under gdb, and calculated the offset to the return address we leaked earlier.
+ - 8 random bytes, followed by the argument we wanted to provide. The argument came in the form of a pointer, which we wanted to point to data we provided. We determined that the pointer should point to the address directly after itself, which after experimentation with gdb, we set to the leaked ebp value - 48. The file we wanted was `\secet\x`, so we provided the hexadecimal encoding of this string, that being `2F73656365742F7900`. Note the 00 we added at the end of the string.
+
+After creating this payload, we store in binary format in a file, and send the file as the contents of a post request using `curl`.
+After receiving `/secet/x`, we are told the results are stored in a different file, `/secet/y`. In `/secet/y`, we find the flag for part 5, as well as a clue for the next step.
+````
+Plan Y results: Computing, approximate answer: FLAG={41.99299141232}
+...
+
+
+
+Plan Z: troll humans who ask stupid questions (real fun).
+I told them I need 7.5 million years to compute this XD
+
+In the meanwhile I'm travelling through time trolling humans of the past.
+Currently playing this clever dude using primitive hardware, he's good but the
+next move is crushing...
+
+1.e4 c6 2.d4 d5 3.Nc3 dxe4 4.Nxe4 Nd7 5.Ng5 Ngf6 6.Bd3 e6 7.N1f3 h6 8.Nxe6 Qe7 9.0-0 fxe6 10.Bg6+ Kd8 11.Bf4 b5 12.a4 Bb7 13.Re1 Nd5 14.Bg3 Kc8 15.axb5 cxb5 16.Qd3 Bc6 17.Bf5 exf5 18.Rxe7 Bxe7
+
+PS. To reach me in the past use the code: FLAG={}
+````
+
+-FLAG={41.99299141232}
+
+### Part 6
+The flag for this part was split in two parts, the first one being the "next move" of the sequence of characters and letters given above, and the second part being the public IP of the server. For the first part, we discovered that the sequence of characters represented chess moves, specifically the chess moves of the famous game "Deep Blue versus Garry Kasparov". The next and final move of the game was c4.
+
+To find the public IP of the server we had to find a way to execute a command on the shell, and have the result sent to us as a response. The command we selected was `dig +short myip.opendns.com @resolver1.opendns.com`. In order to execute the command on the server we had to perform the same steps as above, only returning to the function `system()` instead of `send_file()`. We took note of the fact that since the program was compiled on `linux02.di.uoa.gr`, in order to calculate the correct offset to `system()`, we had to compile on the same machine. After doing this, using `gdb` we found the address of `system()` to be `0xf7b5e3d0`. We observed a similar value was returned by `leakAddr.sh`. We named this value `libc` and calculated the offset of the actual system address based on it. The rest of the attack followed the pattern described in part 5. Doing this we found the IP of the server to be `54.210.15.244`.
+
+-FLAG={c454.210.15.244}
+
+#### Scripts for Part 5 and Part 6
+In order to automate the attack, we used 3 different scripts:
+
+- `createBin.py`: This python script acts as the base for the attack. It calls `leakAddr.sh` to gather information on the memory, calculates the relevant offsets, performs cleanup etc. and converts them to a form suitable form use later. It then creates both payloads, using the address of both `send_file` and `system` as well as the relevant arguments. The results are stored in binary format in `part5.bin` and `part6.bin`. The script then calls `apply.sh` and prints the result.
+- `leakAddr.sh`: This script is used to leak information on the memory of the server, which `createBin.py` uses to calculate the offsets. This information is returned to the form of a string, which `createBin.py` then splits into the relevant parts
+- `apply.sh`: This script is used to send the binary file containing the input to the server, as input for the `check_secret` form. The script takes as input a number, either 5 or 6, which specifies which bin file to send, and prints the results.
+
+
