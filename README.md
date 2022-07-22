@@ -22,7 +22,7 @@ Upon completing each question, we were presented with a "FLAG". Submiting this f
 
 
 ## Capture the Flag
-### Part 1
+### Part 1: Breaking RSA
 - First of all, we searched the given url in tor browser. Then, looking through the source code of the page we found a suspicious comment with a url. This led us to a guide on how to preserve .onion anonymity, which at some point gave instructions on how to disable server-info and server-status endpoints. As it turned out, only the latter has been actually disabled. So, in the current configuration section of the server-info endpoint we found another .onion url, where we had to fill in a field to get authenticated. Again, searching through the source code of this new page, we saw that the post request of this "form" was handled in a file named "access.php".
 - Trying to reach this endpoint we got a "bad user" message. But looking through the Server configuration, we noticed that phps files are enabled and so we got access to the file. There, it said in a comment that the username is the 48th multiple of 7 that contains a 7 in its decimal representation, which is 0001337. As far as the password is concerned, exploiting the php strcmp vulnerability, we injected an array in the comparison and strcmp returned 0(http://flffeyo7q6zllfse2sgwh7i5b5apn73g6upedyihqvaarhq5wrkkn7ad.onion/access.php?user=0001337&password[]=%27%27). There we were given an endpoint (blogposts7589109238/) where we found another url (/blogposts/diary.html) and then another one(/blogposts/diary2.html) and then we finally found https://github.com/chatziko/pico and xtfbiszfeilgi672ted7hmuq5v7v3zbitdrzvveg2qvtz4ar5jndnxad.onion, which asked for credentials. 
 - When we accessed the /blogposts endpoint we were able to see the two html files we had accessed before, plus one more (post3.html). There we we got a couple of useful information, Giorgos Komninos is a customer and #834472 visitor will be able to access some important info. So, we tried to change the visitor cookie in the developer's console. Decrypting the cookie found in the console we got the current visitor number (204) and some random characters. So we figured that only one part of this cookie corresponds to the visitor number(MjA0O). In this way we found the encryption of the visitor #834472 (ODM0NDcy) but then we had to find the meaning of the rest of the cookie. Remembering an error we had previously seen in the home page that said "Bad sha256" we realized that the rest of the cookie had to be the sha256 encoding hash of this number. Using another tool, we got 27c3af7ef2bee1af527dbf8c05b3db6cca63589941b8d49572aa64b5cd8c5b97, and then encoding 834472:27c3af7ef2bee1af527dbf8c05b3db6cca63589941b8d49572aa64b5cd8c5b97 to base64 we got ODM0NDcyOjI3YzNhZjdlZjJiZWUxYWY1MjdkYmY4YzA1YjNkYjZjY2E2MzU4OTk0MWI4ZDQ5NTcyYWE2NGI1Y2Q4YzViOTc=. Adding this new cookie to the browser we managed to access /sekritbackup7547 as this user. 
@@ -34,7 +34,7 @@ Upon completing each question, we were presented with a "FLAG". Submiting this f
 #### Script for Part 1
 - `decipherRSA.py`
 
-### Part 2
+### Part 2: Shamir's Secret Sharing Algorithm
 In his last message, Giorgos pointed out that he had saved an image of "his favourite Kilimanjaro newspaper" at http://aqwlvm4ms72zriryeunpo3uk7myqjvatba4ikl3wy6etdrrblbezlfqd.onion/kilimanjarotimes4818.jpg. There, we read about a missing Greek hiker (presumably Giorgos) and the items he left behind, a book about version control systems and a USB drive, labeled "sss491020.tar.gr". We can download this archive at http://aqwlvm4ms72zriryeunpo3uk7myqjvatba4ikl3wy6etdrrblbezlfqd.onion/sss491020.tar.gz. Initially, the archive is "corrupted", and cannot be extracted. To fix this, we had to edit the archive using a hex editor, and remove text characters that were placed at its beginning to corrupt it. After fixing and extracting the archive, we are faced with a folder titled "sss". Inside is a .git folder. Using `git reset HEAD~1 --hard` we were able to restore two files that had been previously deleted, "notes.txt" and "sss.py". The notes reveal that Giorgos made a discovery while studying polynomials, and to conceal it, he split the information in 3 shares. Knowing this and taking note of the name and contents of "sss.py" we realised he used Shamir's Secret Sharing algorithm to split the secret he discovered. After further examination of the project directory, we discovered some temporarily stashed changes, which we restored using `git stash pop`. This restored a file named "polywork.py", that in addition to the contents of "sss.py", contained the code needed to connect the shares of Shamir's Secret Sharing algorithm and restore the secret. After further examination of the project, we found the shares were stored in the name of a tag. Inputting the shares in a slightly modified version of "polywork.py", named "decryptSSS.py", we found that Giorgos discovered that time travel was possible.
 
 -FLAG={TimeTravelPossible!!?}
@@ -42,7 +42,7 @@ In his last message, Giorgos pointed out that he had saved an image of "his favo
 #### Script for Part 2
 - `decryptSSS.py`
 
-### Part 3
+### Part 3: Exploiting missing format arguments
 We tried to make use of the leads we had collected during the previous steps. Specifically, we attempted to access Yvoni's server, connection to which required credentials. We knew that the server was based on the pico repo, a link to which we had previously found. We cloned the repo, compiled the program and in doing so, we noticed a warning, telling as that a printf call, used to print the user-provided username was missing format arguments. We attempted to exploit this mistake, by providing a number of type arguments. We did this using an automated script to provide a number of %x type arguments followed by one %s type argument. In doing this we hoped to force the server to output sensitive information on the HTTP response, which we could then use. We found that by using `%x %x %x %x %x %x %s` as the username, we could make the server output the username:hashed-password combination of the admin. We used an online tool to retrieve the original password (hammertime) from the hash, and used it to login to the server. There, we found that the Project-X files had been moved to a new location, and we got a new clue.
 
 -FLAG={Stop! Hammer Time}
@@ -51,7 +51,7 @@ We tried to make use of the leads we had collected during the previous steps. Sp
 - `serverLogin.sh`
 
 
-### Part 4
+### Part 4: Padding Oracle Attack on AES
 The clue came in the form of an encrypted message, which when decrypted would reveal the location the files had been moved to. In the same page, we had access to a form that could be used to verify the encrypted message was in fact correct. After experimenting with filing out the form we found we got the following messages:
 
 - "secret ok": when filing the form with the provided ciphertext
@@ -66,7 +66,7 @@ We noticed that similarly to a previous problem, the webpage was based on a pico
 - `aesOracle.sh`
 
 
-### Part 5
+### Part 5: Buffer Overflow Part #1
 We revealed the new location of the files, we now had to retrieve them. After further examining the code, we decided this would be done using the `send_file()` function. This function takes a filename as input, and transmits the file to the client. In order to call the function using `\secet\x` as the argument, we needed to perform a buffer overflow attack, by abusing the use of `strcpy()` under the function `post_param`, a vulnerability we had taken note of earlier. The server uses `strcpy()` to copy the contents of the user-made POST request to a buffer for further processing. The buffer is created dynamically based on the size of the data of the request. This data is normally calculated on the client side based on the input (by the browser, the `curl` command etc.), it is however possible to provide it manually, thus forcing the buffer to have a certain size. By adding `-H 'Content-Length: 0'` as an argument to our curl command, we can force the buffer to take a size of 0.
 
 We now have to figure out what to overflow the buffer with. To gather information on the internal workings of the program, and specifically the contents of the stack, we used the vulnerable `printf()` function from an earlier problem. By providing a number of `08x` as arguments, we could leak the contents of the stack. After examining our local version of the server under `gdb`, we determined that we needed to leak at least 31 words of the memory, to gather all the information we need. This task is performed by `leakAddr.sh`, which prints a string that contains 31 words of the server's memory under the `check_auth()` function. Among these are
@@ -104,7 +104,7 @@ PS. To reach me in the past use the code: FLAG={}
 
 -FLAG={41.99299141232}
 
-### Part 6
+### Part 6: Buffer Overflow Part #2
 The flag for this part was split in two parts, the first one being the "next move" of the sequence of characters and letters given above, and the second part being the public IP of the server. For the first part, we discovered that the sequence of characters represented chess moves, specifically the chess moves of the famous game "Deep Blue versus Garry Kasparov". The next and final move of the game was c4.
 
 To find the public IP of the server we had to find a way to execute a command on the shell, and have the result sent to us as a response. The command we selected was `dig +short myip.opendns.com @resolver1.opendns.com`. In order to execute the command on the server we had to perform the same steps as above, only returning to the function `system()` instead of `send_file()`. We took note of the fact that since the program was compiled on `linux02.di.uoa.gr`, in order to calculate the correct offset to `system()`, we had to compile on the same machine. After doing this, using `gdb` we found the address of `system()` to be `0xf7b5e3d0`. We observed a similar value was returned by `leakAddr.sh`. We named this value `libc` and calculated the offset of the actual system address based on it. The rest of the attack followed the pattern described in part 5. Doing this we found the IP of the server to be `54.210.15.244`.
